@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b04cb0df1575c0a41a8278a4ebf18f4b, type: 3}
   m_Name: DefaultInteractionConfig
   m_EditorClassIdentifier: Assembly-CSharp::Glush.Interaction.InteractionConfig
-  _raycastDistance: 2.5
+  _raycastDistance: 1
   _raycastRadius: 0.15
   _interactableLayer:
     serializedVersion: 2
