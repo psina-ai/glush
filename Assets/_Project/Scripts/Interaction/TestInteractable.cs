@@ -1,4 +1,5 @@
 using UnityEngine;
+using Glush.Personality;
 
 namespace Glush.Interaction
 {
@@ -21,6 +22,13 @@ namespace Glush.Interaction
         
         [SerializeField, Tooltip("Интенсивность highlight при фокусе")]
         private float _focusIntensity = 1.5f;
+
+        [Header("Personality Test")]
+        [SerializeField, Tooltip("Применять сдвиг к шкалам личности при взаимодействии")]
+        private bool _applyPersonalityShift = false;
+
+        [SerializeField, Tooltip("Величина сдвига для каждой шкалы")]
+        private int _shiftAmount = 1;
         
         private Renderer _renderer;
         private Color _originalColor;
@@ -55,6 +63,18 @@ namespace Glush.Interaction
                     Random.Range(0.2f, 1f),
                     Random.Range(0.2f, 1f)
                 );
+            }
+
+            // Тестирование системы личности
+            if (_applyPersonalityShift && PersonalityManager.Instance != null)
+            {
+                var data = PersonalityManager.Instance.Data;
+                data.Add(PersonalityAxis.Zhiteyskaya, _shiftAmount);
+                data.Add(PersonalityAxis.Povedencheskaya, _shiftAmount);
+                data.Add(PersonalityAxis.Poetichnaya, _shiftAmount);
+                Debug.Log($"[Personality] Zh:{data.Get(PersonalityAxis.Zhiteyskaya)} " +
+                          $"Po:{data.Get(PersonalityAxis.Povedencheskaya)} " +
+                          $"Pt:{data.Get(PersonalityAxis.Poetichnaya)}");
             }
         }
         
