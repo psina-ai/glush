@@ -119,6 +119,51 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &529355
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 529356}
+  - component: {fileID: 529357}
+  m_Layer: 0
+  m_Name: TestDialogue
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &529356
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 529355}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 17.13232, y: 0, z: 13.74917}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &529357
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 529355}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ba7d04e43182ba4d815b1214f74b439, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Glush.Dialogue.InkDialogueRunner
+  _testInkJson: {fileID: 4900000, guid: 16dc604a7ea9961409d10397cba1d06f, type: 3}
 --- !u!1 &14729068
 GameObject:
   m_ObjectHideFlags: 0
@@ -1076,6 +1121,8 @@ MonoBehaviour:
     \u0441 \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C."
   _focusColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   _focusIntensity: 1.5
+  _applyPersonalityShift: 0
+  _shiftAmount: 1
 --- !u!65 &988618873
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1206,6 +1253,8 @@ MonoBehaviour:
     \u0441 \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C."
   _focusColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   _focusIntensity: 1.5
+  _applyPersonalityShift: 0
+  _shiftAmount: 1
 --- !u!65 &1095697570
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1336,6 +1385,8 @@ MonoBehaviour:
     \u0441 \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C."
   _focusColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   _focusIntensity: 1.5
+  _applyPersonalityShift: 0
+  _shiftAmount: 1
 --- !u!65 &1301434008
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2931,3 +2982,4 @@ SceneRoots:
   - {fileID: 642479836}
   - {fileID: 1530845208}
   - {fileID: 411773220}
+  - {fileID: 529356}

@@ -1,12 +1,5 @@
 {
   "dependencies": {
-    "com.inkle.ink-unity-integration": {
-      "version": "https://github.com/inkle/ink-unity-integration.git#upm",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "73cc147969899710843f473fdb06cea0e4d50fed"
-    },
     "com.unity.addressables": {
       "version": "2.9.1",
       "depth": 1,
