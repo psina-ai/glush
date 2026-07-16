@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using Ink.Runtime;
+using Glush.Personality;
 
 namespace Glush.Dialogue
 {
@@ -55,6 +56,7 @@ namespace Glush.Dialogue
             }
 
             _currentStory = new Story(inkJson.text);
+            RegisterExternalFunctions();
             OnDialogueStarted?.Invoke();
             ContinueStory();
         }
@@ -105,6 +107,56 @@ namespace Glush.Dialogue
             }
             Debug.Log($"[Runner] ContinueStory: text='{CurrentText}', choices={_currentChoices.Count}");
             OnDialogueContinued?.Invoke();
+        }
+
+        /// <summary>
+        /// Регистрация внешних функций Ink для чтения и изменения шкал личности.
+        /// Вызывается при старте каждого нового диалога.
+        /// </summary>
+        private void RegisterExternalFunctions()
+        {
+            if (_currentStory == null) return;
+
+            // Проверка доступности PersonalityManager
+            if (PersonalityManager.Instance == null)
+            {
+                Debug.LogWarning("[Personality] PersonalityManager.Instance == null, внешние функции не зарегистрированы.");
+                return;
+            }
+
+            var data = PersonalityManager.Instance.Data;
+
+            // Функции чтения
+            _currentStory.BindExternalFunction("get_zhit", () => data.Get(PersonalityAxis.Zhiteyskaya));
+            _currentStory.BindExternalFunction("get_pov", () => data.Get(PersonalityAxis.Povedencheskaya));
+            _currentStory.BindExternalFunction("get_poet", () => data.Get(PersonalityAxis.Poetichnaya));
+
+            // Функции изменения
+            _currentStory.BindExternalFunction("shift_zhit", (int delta) =>
+            {
+                int oldValue = data.Get(PersonalityAxis.Zhiteyskaya);
+                data.Add(PersonalityAxis.Zhiteyskaya, delta);
+                int newValue = data.Get(PersonalityAxis.Zhiteyskaya);
+                Debug.Log($"[Personality] shift_zhit({delta}): Zhiteyskaya {oldValue} -> {newValue}");
+            });
+
+            _currentStory.BindExternalFunction("shift_pov", (int delta) =>
+            {
+                int oldValue = data.Get(PersonalityAxis.Povedencheskaya);
+                data.Add(PersonalityAxis.Povedencheskaya, delta);
+                int newValue = data.Get(PersonalityAxis.Povedencheskaya);
+                Debug.Log($"[Personality] shift_pov({delta}): Povedencheskaya {oldValue} -> {newValue}");
+            });
+
+            _currentStory.BindExternalFunction("shift_poet", (int delta) =>
+            {
+                int oldValue = data.Get(PersonalityAxis.Poetichnaya);
+                data.Add(PersonalityAxis.Poetichnaya, delta);
+                int newValue = data.Get(PersonalityAxis.Poetichnaya);
+                Debug.Log($"[Personality] shift_poet({delta}): Poetichnaya {oldValue} -> {newValue}");
+            });
+
+            Debug.Log("[Personality] Внешние функции зарегистрированы: get_zhit, get_pov, get_poet, shift_zhit, shift_pov, shift_poet");
         }
 
         // ═══════════════════════════════════════════════════════
