@@ -103,8 +103,33 @@ namespace Glush.Dialogue
                 EndDialogue();
                 return;
             }
-
+            Debug.Log($"[Runner] ContinueStory: text='{CurrentText}', choices={_currentChoices.Count}");
             OnDialogueContinued?.Invoke();
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // Отладочный запуск диалога через ContextMenu инспектора
+        // Правый клик на компоненте → TEST: Start Test Dialogue
+        // ═══════════════════════════════════════════════════════
+
+        [SerializeField] private TextAsset _testDialogueJson;
+
+        [ContextMenu("TEST: Start Test Dialogue")]
+        private void ContextTestStartDialogue()
+        {
+            if (_testDialogueJson == null)
+            {
+                Debug.LogError("[Test] Не назначен _testDialogueJson в инспекторе");
+                return;
+            }
+            StartDialogue(_testDialogueJson);
+        }
+
+        [ContextMenu("TEST: Force End Dialogue")]
+        private void ContextTestEndDialogue()
+        {
+            if (IsDialogueActive) EndDialogue();
+            else Debug.Log("[Test] Диалог не активен");
         }
     }
 }

@@ -70,38 +70,39 @@ namespace Glush.Dialogue
         private IEnumerator OpenSequence()
         {
             LockPlayer(true);
-            yield return StartCoroutine(FadeOverlay(0f, 1f, _fadeInDuration));
-            
-            _dialogueRoot.SetActive(true);
+
+            // Чистим ДО того как Runner добавит первую реплику
             ClearHistory();
             ClearChoices();
-            
+            _dialogueRoot.SetActive(true);
+
+            yield return StartCoroutine(FadeOverlay(0f, 1f, _fadeInDuration));
             yield return StartCoroutine(FadeOverlay(1f, 0f, _fadeOutDuration));
         }
 
         private IEnumerator CloseSequence()
         {
             yield return StartCoroutine(FadeOverlay(0f, 1f, _fadeInDuration));
-            
+
             ClearHistory();
             ClearChoices();
             _dialogueRoot.SetActive(false);
             LockPlayer(false);
-            
+
             yield return StartCoroutine(FadeOverlay(1f, 0f, _fadeOutDuration));
         }
 
         private IEnumerator FadeOverlay(float from, float to, float duration)
         {
             float elapsed = 0f;
-            
+
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
                 _blackOverlay.alpha = Mathf.Lerp(from, to, elapsed / duration);
                 yield return null;
             }
-            
+
             _blackOverlay.alpha = to;
         }
 
@@ -109,10 +110,10 @@ namespace Glush.Dialogue
         {
             if (_playerMovement != null)
                 _playerMovement.enabled = !locked;
-            
+
             if (_playerCameraLook != null)
                 _playerCameraLook.enabled = !locked;
-            
+
             Cursor.lockState = locked ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = locked;
         }
@@ -131,7 +132,7 @@ namespace Glush.Dialogue
             _spawnedHistoryLines.Add(newLine);
 
             LayoutRebuilder.ForceRebuildLayoutImmediate(_historyContainer);
-            
+
             if (_historyScrollRect != null)
                 _historyScrollRect.verticalNormalizedPosition = 0f;
         }
@@ -141,18 +142,18 @@ namespace Glush.Dialogue
             ClearChoices();
 
             var choices = InkDialogueRunner.Instance.CurrentChoices;
-            
+
             for (int i = 0; i < choices.Count; i++)
             {
                 var button = Instantiate(_choiceButtonPrefab, _choicesContainer);
                 var text = button.GetComponentInChildren<TMPro.TMP_Text>();
-                
+
                 if (text != null)
                     text.text = choices[i].text;
-                
+
                 int index = i;
                 button.onClick.AddListener(() => OnChoiceClicked(index));
-                
+
                 _spawnedChoiceButtons.Add(button);
             }
         }
@@ -167,7 +168,7 @@ namespace Glush.Dialogue
         {
             foreach (var line in _spawnedHistoryLines)
                 Destroy(line.gameObject);
-            
+
             _spawnedHistoryLines.Clear();
         }
 
@@ -178,7 +179,7 @@ namespace Glush.Dialogue
                 if (button != null)
                     Destroy(button.gameObject);
             }
-            
+
             _spawnedChoiceButtons.Clear();
         }
     }
