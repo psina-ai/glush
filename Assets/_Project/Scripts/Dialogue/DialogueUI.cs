@@ -118,24 +118,31 @@ namespace Glush.Dialogue
             Cursor.visible = locked;
         }
 
-        private void UpdateHistory()
-        {
-            foreach (var line in _spawnedHistoryLines)
-            {
-                var color = line.color;
-                color.a = _oldLineAlpha;
-                line.color = color;
-            }
+private void UpdateHistory()
+{
+    foreach (var line in _spawnedHistoryLines)
+    {
+        var color = line.color;
+        color.a = _oldLineAlpha;
+        line.color = color;
+    }
 
-            var newLine = Instantiate(_historyLinePrefab, _historyContainer);
-            newLine.text = InkDialogueRunner.Instance.CurrentText;
-            _spawnedHistoryLines.Add(newLine);
+    var newLine = Instantiate(_historyLinePrefab, _historyContainer);
+    newLine.text = InkDialogueRunner.Instance.CurrentText;
+    _spawnedHistoryLines.Add(newLine);
 
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_historyContainer);
+    LayoutRebuilder.ForceRebuildLayoutImmediate(_historyContainer);
 
-            if (_historyScrollRect != null)
-                _historyScrollRect.verticalNormalizedPosition = 0f;
-        }
+    if (_historyScrollRect != null)
+        StartCoroutine(ScrollToBottomNextFrame());
+}
+
+private System.Collections.IEnumerator ScrollToBottomNextFrame()
+{
+    yield return null;
+    Canvas.ForceUpdateCanvases();
+    _historyScrollRect.verticalNormalizedPosition = 0f;
+}
 
         private void UpdateChoices()
         {
