@@ -15,6 +15,11 @@ EXTERNAL shift_zhit(x)
 EXTERNAL shift_pov(x)
 EXTERNAL shift_poet(x)
 
+EXTERNAL knows(key)
+EXTERNAL set_flag(key, value)
+EXTERNAL int_get(key)
+EXTERNAL int_add(key, delta)
+
 VAR sigarety_kupil = false
 VAR sprashival_pro_neyo = false
 
@@ -24,6 +29,15 @@ VAR sprashival_pro_neyo = false
 // ─── СЦЕНА 1: подходишь к кассе ────────────────────────────
 
 === pered_kassoy ===
+~ int_add("times_talked_to_cashier", 1)
+
+{knows("met_cashier"):
+    Опять припёрся. {int_get("times_talked_to_cashier")}-й раз уже.
+- else:
+    Здрасьте, первый раз вас вижу.
+    ~ set_flag("met_cashier", true)
+}
+
 Кассирша поднимает глаза.
 Смотрит долго, без выражения.
 "Что-то нужно?"
@@ -55,7 +69,6 @@ VAR sprashival_pro_neyo = false
 + { get_poet() > 30 } [(Иллюзия) "Дай мне что-нибудь, что горит."]
     ~ shift_poet(2)
     -> zakaz_stranno
-
 
 * [Молча уйти]
     -> uhod_bez_pokupki
@@ -133,7 +146,6 @@ VAR sprashival_pro_neyo = false
     ~ shift_zhit(-1)
     -> deneg_na_stoyku
 
-
 === peredacha_deneg ===
 Твои пальцы касаются её.
 Холодные.
@@ -188,10 +200,8 @@ VAR sprashival_pro_neyo = false
 + { not sprashival_pro_neyo } [Задержаться. Спросить кое-что]
     -> zaderzhka
 
-
 === zaderzhka ===
 ~ sprashival_pro_neyo = true
-
 Ты не уходишь.
 
 * [Спросить, давно ли она здесь работает]
@@ -256,7 +266,6 @@ VAR sprashival_pro_neyo = false
 Пауза.
 "Но ты, наверное, видел то, чего у моря быть не должно."
 -> posle_voprosa
-
 
 === posle_voprosa ===
 Ты молчишь.

@@ -4,6 +4,7 @@ using System.Text;
 using UnityEngine;
 using Ink.Runtime;
 using Glush.Personality;
+using Glush.GameFlags;
 
 namespace Glush.Dialogue
 {
@@ -157,6 +158,36 @@ namespace Glush.Dialogue
             });
 
             Debug.Log("[Personality] Внешние функции зарегистрированы: get_zhit, get_pov, get_poet, shift_zhit, shift_pov, shift_poet");
+
+            // Проверка доступности GameFlagsManager
+            if (GameFlagsManager.Instance == null)
+            {
+                Debug.LogWarning("[GameFlags] GameFlagsManager.Instance == null, функции GameFlags не зарегистрированы.");
+                return;
+            }
+
+            var flags = GameFlagsManager.Instance.Flags;
+
+            // GameFlags функции чтения
+            _currentStory.BindExternalFunction("knows", (string key) => flags.GetBool(key));
+            _currentStory.BindExternalFunction("int_get", (string key) => flags.GetInt(key));
+
+            // GameFlags функции изменения
+            _currentStory.BindExternalFunction("set_flag", (string key, bool value) =>
+            {
+                flags.SetBool(key, value);
+                Debug.Log($"[GameFlags] set_flag({key}, {value})");
+            });
+
+            _currentStory.BindExternalFunction("int_add", (string key, int delta) =>
+            {
+                int oldValue = flags.GetInt(key);
+                flags.AddInt(key, delta);
+                int newValue = flags.GetInt(key);
+                Debug.Log($"[GameFlags] int_add({key}, {delta}): {oldValue} -> {newValue}");
+            });
+
+            Debug.Log("[GameFlags] Внешние функции зарегистрированы: knows, set_flag, int_get, int_add");
         }
 
         // ═══════════════════════════════════════════════════════
