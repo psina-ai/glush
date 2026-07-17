@@ -164,6 +164,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Glush.Dialogue.InkDialogueRunner
   _testDialogueJson: {fileID: 4900000, guid: 16dc604a7ea9961409d10397cba1d06f, type: 3}
+  _testStoryStateId: test
+  _testEntryKnot: start
 --- !u!1 &14729068
 GameObject:
   m_ObjectHideFlags: 0
@@ -718,6 +720,8 @@ MonoBehaviour:
   _promptText: "\u041F\u043E\u0433\u043E\u0432\u043E\u0440\u0438\u0442\u044C"
   _dialogueCamera: {fileID: 1588573799}
   _cameraSwitchDelay: 0.35
+  _storyStateId: kira
+  _entryKnot: kira_entry
 --- !u!65 &415123643
 BoxCollider:
   m_ObjectHideFlags: 0

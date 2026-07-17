@@ -12,6 +12,12 @@ namespace Glush.Interaction
         [SerializeField] private CinemachineCamera _dialogueCamera;
         [SerializeField] private float _cameraSwitchDelay = 0.35f;
 
+        // ID состояния Ink-истории для сохранения между разговорами
+        [SerializeField] private string _storyStateId;
+
+        // Входной узел (knot) в Ink-сценарии для каждого нового визита
+        [SerializeField] private string _entryKnot;
+
         private void OnEnable()
         {
             InkDialogueRunner.OnDialogueEnded += HandleDialogueEnded;
@@ -41,7 +47,9 @@ namespace Glush.Interaction
                 return;
             }
 
-            InkDialogueRunner.Instance.StartDialogue(_dialogueJson);
+            // Передаём storyStateId и entryKnot в InkDialogueRunner
+            InkDialogueRunner.Instance.RememberStoryStateId(_storyStateId);
+            InkDialogueRunner.Instance.StartDialogue(_dialogueJson, _storyStateId, _entryKnot);
             StartCoroutine(SwitchCameraDelayed(+10, _cameraSwitchDelay));
         }
 

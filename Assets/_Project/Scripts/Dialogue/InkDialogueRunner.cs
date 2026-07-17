@@ -42,7 +42,10 @@ namespace Glush.Dialogue
             }
         }
 
-        public void StartDialogue(TextAsset inkJson)
+        /// <summary>
+        /// Запустить диалог с сохранением состояния по storyStateId и входным узлом entryKnot.
+        /// </summary>
+        public void StartDialogue(TextAsset inkJson, string storyStateId = null, string entryKnot = null)
         {
             if (inkJson == null)
             {
@@ -56,8 +59,42 @@ namespace Glush.Dialogue
                 return;
             }
 
+            // Валидация ID и entry knot
+            if (string.IsNullOrEmpty(storyStateId))
+            {
+                Debug.LogError("InkDialogueRunner: storyStateId не задан. Укажите ID для сохранения состояния.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(entryKnot))
+            {
+                Debug.LogError($"InkDialogueRunner: entryKnot не задан для storyStateId='{storyStateId}'. Укажите входной узел в Ink.");
+                return;
+            }
+
             _currentStory = new Story(inkJson.text);
             RegisterExternalFunctions();
+
+            // Загрузка сохранённого состояния, если оно есть
+            if (InkStateManager.Instance != null)
+            {
+                if (InkStateManager.Instance.TryGetState(storyStateId, out string savedState))
+                {
+                    try
+                    {
+                        _currentStory.state.LoadJson(savedState);
+                        Debug.Log($"[Runner] Loaded Ink state for '{storyStateId}'");
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"[Runner] Не удалось загрузить сохранённое состояние для '{storyStateId}': {e.Message}. Запуск со свежим состоянием.");
+                    }
+                }
+            }
+
+            // Переход в entry knot при каждом новом визите
+            _currentStory.ChoosePathString(entryKnot);
+
             OnDialogueStarted?.Invoke();
             ContinueStory();
         }
@@ -82,6 +119,22 @@ namespace Glush.Dialogue
 
         public void EndDialogue()
         {
+            // Сохранение состояния перед очисткой
+            if (_currentStory != null && !string.IsNullOrEmpty(_lastStoryStateId))
+            {
+                try
+                {
+                    string stateJson = _currentStory.state.ToJson();
+                    InkStateManager.Instance?.SetState(_lastStoryStateId, stateJson);
+                    InkStateManager.Instance?.Save();
+                    Debug.Log($"[Runner] Saved Ink state for '{_lastStoryStateId}'");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[Runner] Не удалось сохранить состояние для '{_lastStoryStateId}': {e.Message}");
+                }
+            }
+
             _currentStory = null;
             CurrentText = string.Empty;
             _currentChoices.Clear();
@@ -111,9 +164,19 @@ namespace Glush.Dialogue
         }
 
         /// <summary>
-        /// Регистрация внешних функций Ink для чтения и изменения шкал личности.
-        /// Вызывается при старте каждого нового диалога.
+        /// Последний использованный storyStateId для сохранения при завершении диалога.
+        /// Устанавливается при старте диалога.
         /// </summary>
+        private string _lastStoryStateId;
+
+        /// <summary>
+        /// Запомнить storyStateId для последующего сохранения при завершении диалога.
+        /// </summary>
+        public void RememberStoryStateId(string storyStateId)
+        {
+            _lastStoryStateId = storyStateId;
+        }
+
         private void RegisterExternalFunctions()
         {
             if (_currentStory == null) return;
@@ -196,6 +259,8 @@ namespace Glush.Dialogue
         // ═══════════════════════════════════════════════════════
 
         [SerializeField] private TextAsset _testDialogueJson;
+        [SerializeField] private string _testStoryStateId = "test";
+        [SerializeField] private string _testEntryKnot = "start";
 
         [ContextMenu("TEST: Start Test Dialogue")]
         private void ContextTestStartDialogue()
@@ -205,7 +270,7 @@ namespace Glush.Dialogue
                 Debug.LogError("[Test] Не назначен _testDialogueJson в инспекторе");
                 return;
             }
-            StartDialogue(_testDialogueJson);
+            StartDialogue(_testDialogueJson, _testStoryStateId, _testEntryKnot);
         }
 
         [ContextMenu("TEST: Force End Dialogue")]

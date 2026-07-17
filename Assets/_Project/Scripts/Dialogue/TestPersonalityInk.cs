@@ -34,36 +34,11 @@ namespace Glush.Dialogue
 
             if (InkDialogueRunner.Instance != null)
             {
-                InkDialogueRunner.Instance.StartDialogue(_testDialogueJson);
+                InkDialogueRunner.Instance.StartDialogue(_testDialogueJson, "test", "start");
             }
             else
             {
                 Debug.LogError("[TestPersonalityInk] InkDialogueRunner.Instance == null");
-            }
-        }
-
-        private void Update()
-        {
-            // Быстрый тест смены шкал через консоль
-            if (Input.GetKeyDown(KeyCode.P))
-            {
-                if (PersonalityManager.Instance != null)
-                {
-                    var data = PersonalityManager.Instance.Data;
-                    Debug.Log($"[Personality] Текущие значения: " +
-                              $"Zh: {data.Get(PersonalityAxis.Zhiteyskaya)}, " +
-                              $"Po: {data.Get(PersonalityAxis.Povedencheskaya)}, " +
-                              $"Pt: {data.Get(PersonalityAxis.Poetichnaya)}");
-                }
-            }
-
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                if (PersonalityManager.Instance != null)
-                {
-                    PersonalityManager.Instance.Data.ResetAll();
-                    Debug.Log("[Personality] Все шкалы сброшены к 0");
-                }
             }
         }
     }

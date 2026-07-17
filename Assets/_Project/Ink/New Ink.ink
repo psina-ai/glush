@@ -23,12 +23,8 @@ EXTERNAL int_add(key, delta)
 VAR sigarety_kupil = false
 VAR sprashival_pro_neyo = false
 
--> pered_kassoy
-
-
-// ─── СЦЕНА 1: подходишь к кассе ────────────────────────────
-
-=== pered_kassoy ===
+// ─── ВХОДНОЙ УЗЕЛ ДЛЯ КАЖДОГО НОВОГО ВИЗИТА ──────────────────
+=== kira_entry ===
 ~ int_add("times_talked_to_cashier", 1)
 
 {knows("met_cashier"):
@@ -72,6 +68,8 @@ VAR sprashival_pro_neyo = false
 
 * [Молча уйти]
     -> uhod_bez_pokupki
+
+// ─── СЦЕНА 1: подходишь к кассе (старый код, удалён) ─────────
 
 
 // ─── СЦЕНА 2: варианты заказа ──────────────────────────────
