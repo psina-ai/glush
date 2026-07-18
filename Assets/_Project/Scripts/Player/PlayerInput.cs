@@ -20,6 +20,7 @@ namespace Glush.Player
         
         public event Action OnJumpPressed;
         public event Action OnInteractPressed;
+        public event Action OnSmokePressed;
         
         private void Awake()
         {
@@ -42,12 +43,19 @@ namespace Glush.Player
                 OnInteractPressed?.Invoke();
                 if (_logInputs) Debug.Log("[PlayerInput] Interact pressed");
             };
+            
+            _playerActions.Smoke.performed += ctx =>
+            {
+                OnSmokePressed?.Invoke();
+                if (_logInputs) Debug.Log("[PlayerInput] Smoke pressed");
+            };
         }
         
         private void OnDisable()
         {
             _playerActions.Jump.performed -= ctx => OnJumpPressed?.Invoke();
             _playerActions.Interact.performed -= ctx => OnInteractPressed?.Invoke();
+            _playerActions.Smoke.performed -= ctx => OnSmokePressed?.Invoke();
             
             _playerActions.Disable();
         }

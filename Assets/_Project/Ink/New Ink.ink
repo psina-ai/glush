@@ -14,17 +14,17 @@ EXTERNAL get_poet()
 EXTERNAL shift_zhit(x)
 EXTERNAL shift_pov(x)
 EXTERNAL shift_poet(x)
-
 EXTERNAL knows(key)
 EXTERNAL set_flag(key, value)
 EXTERNAL int_get(key)
 EXTERNAL int_add(key, delta)
 
-VAR sigarety_kupil = false
 VAR sprashival_pro_neyo = false
 
 // ─── ВХОДНОЙ УЗЕЛ ДЛЯ КАЖДОГО НОВОГО ВИЗИТА ──────────────────
+
 === kira_entry ===
+
 ~ int_add("times_talked_to_cashier", 1)
 
 {knows("met_cashier"):
@@ -38,53 +38,56 @@ VAR sprashival_pro_neyo = false
 Смотрит долго, без выражения.
 "Что-то нужно?"
 
-+ [(Нейтрально) "Пачку 'Явы', пожалуйста."]
++ { int_get("cigarettes_count") <= 0 } [(Нейтрально) "Пачку 'Явы', пожалуйста."]
     ~ shift_zhit(1)
     -> zakaz_sdelan
 
-+ [(Резко) "Яву. Одну."]
++ { int_get("cigarettes_count") <= 0 } [(Резко) "Яву. Одну."]
     ~ shift_zhit(-3)
     -> zakaz_rezko
 
-+ [(Устало) "Дай что-нибудь курить. Всё равно что."]
++ { int_get("cigarettes_count") <= 0 } [(Устало) "Дай что-нибудь курить. Всё равно что."]
     ~ shift_zhit(3)
     -> zakaz_ustalo
 
-+ { get_zhit() < -30 } [(Эхо) *Смотришь на её руки. Замечаешь, что они не шевелятся*]
++ { get_zhit() < -30 } { int_get("cigarettes_count") <= 0 } [(Эхо) *Смотришь на её руки. Замечаешь, что они не шевелятся*]
     ~ shift_zhit(-2)
     -> zakaz_kholodno
 
-+ { get_zhit() > 30 } [(Фатализм) *Замираешь. Просто ждёшь*]
++ { get_zhit() > 30 } { int_get("cigarettes_count") <= 0 } [(Фатализм) *Замираешь. Просто ждёшь*]
     ~ shift_zhit(2)
     -> zakaz_zamedlenno
 
-+ { get_pov() < -30 } [(Приказ) "Пачку Явы. Быстро."]
++ { get_pov() < -30 } { int_get("cigarettes_count") <= 0 } [(Приказ) "Пачку Явы. Быстро."]
     ~ shift_pov(-2)
     -> zakaz_v_stroyu
 
-+ { get_poet() > 30 } [(Иллюзия) "Дай мне что-нибудь, что горит."]
++ { get_poet() > 30 } { int_get("cigarettes_count") <= 0 } [(Иллюзия) "Дай мне что-нибудь, что горит."]
     ~ shift_poet(2)
     -> zakaz_stranno
 
-* [Молча уйти]
++ { int_get("cigarettes_count") > 0 } [Спросить про сигареты]
+    -> zakaz_uzhe_est
+
++ [Молча уйти]
     -> uhod_bez_pokupki
 
-// ─── СЦЕНА 1: подходишь к кассе (старый код, удалён) ─────────
-
-
-// ─── СЦЕНА 2: варианты заказа ──────────────────────────────
+// ─── СЦЕНА 2: ВАРИАНТЫ ЗАКАЗА ───────────────────────────────
 
 === zakaz_sdelan ===
+
 Она достаёт пачку из-под стойки.
 "Пятьдесят два."
 -> oplata
 
 === zakaz_rezko ===
+
 Она молча кладёт пачку на стойку.
 "Пятьдесят два."
 -> oplata
 
 === zakaz_ustalo ===
+
 Она на мгновение поднимает глаза.
 Что-то в её взгляде — не совсем человеческое.
 "Всё курит одинаково," — говорит и достаёт пачку.
@@ -92,6 +95,7 @@ VAR sprashival_pro_neyo = false
 -> oplata
 
 === zakaz_kholodno ===
+
 Она замечает твой взгляд.
 На секунду отводит глаза.
 Молча кладёт пачку.
@@ -99,6 +103,7 @@ VAR sprashival_pro_neyo = false
 -> oplata
 
 === zakaz_zamedlenno ===
+
 Кассирша тоже замирает.
 Секунды растягиваются.
 Потом — медленно — достаёт пачку.
@@ -106,6 +111,7 @@ VAR sprashival_pro_neyo = false
 -> oplata
 
 === zakaz_v_stroyu ===
+
 Она смотрит на тебя ровно.
 "Есть."
 Пачка появляется на стойке.
@@ -113,6 +119,7 @@ VAR sprashival_pro_neyo = false
 -> oplata
 
 === zakaz_stranno ===
+
 Она смотрит долго.
 Молчит.
 Потом — медленно кивает.
@@ -122,10 +129,15 @@ VAR sprashival_pro_neyo = false
 "Пятьдесят два."
 -> oplata
 
+=== zakaz_uzhe_est ===
 
-// ─── СЦЕНА 3: оплата ──────────────────────────────────────
+"Тебе хватит того, что есть," — говорит она, не поднимая глаз.
+-> uhod_bez_pokupki
+
+// ─── СЦЕНА 3: ОПЛАТА ─────────────────────────────────────────
 
 === oplata ===
+
 Ты лезешь в карман.
 
 + [Отсчитать деньги и протянуть]
@@ -145,21 +157,26 @@ VAR sprashival_pro_neyo = false
     -> deneg_na_stoyku
 
 === peredacha_deneg ===
+
 Твои пальцы касаются её.
 Холодные.
 Слишком холодные.
-~ sigarety_kupil = true
+
+~ int_add("cigarettes_count", 5)
 -> posle_pokupki
 
 === zaderzhka_deneg ===
+
 Она смотрит на тебя без выражения.
 Ждёт.
 Ты кладёшь деньги.
 Её пальцы холодные. Как металл в мороз.
-~ sigarety_kupil = true
+
+~ int_add("cigarettes_count", 5)
 -> posle_pokupki
 
 === ne_zaplatit ===
+
 Кассирша смотрит без выражения.
 "Ну попробуй."
 Пауза.
@@ -167,31 +184,33 @@ VAR sprashival_pro_neyo = false
 
 + [Всё-таки заплатить]
     Ты кладёшь деньги.
-    ~ sigarety_kupil = true
+    ~ int_add("cigarettes_count", 5)
     -> posle_pokupki
 
 + [Взять пачку и уйти]
     Ты берёшь пачку.
     Она не двигается.
     Не моргает.
-    ~ sigarety_kupil = true
+    ~ int_add("cigarettes_count", 5)
     ~ shift_pov(3)
     -> uhod_bez_oplaty
 
 === deneg_na_stoyku ===
+
 Ты кладёшь деньги, не касаясь её руки.
 Она забирает без слов.
-~ sigarety_kupil = true
+
+~ int_add("cigarettes_count", 5)
 -> posle_pokupki
 
-
-// ─── СЦЕНА 4: после покупки ────────────────────────────────
+// ─── СЦЕНА 4: ПОСЛЕ ПОКУПКИ ─────────────────────────────────
 
 === posle_pokupki ===
+
 Пачка в кармане.
 Кассирша всё так же смотрит.
 
-* [Уйти]
++ [Уйти]
     ~ shift_zhit(1)
     -> uhod
 
@@ -199,7 +218,9 @@ VAR sprashival_pro_neyo = false
     -> zaderzhka
 
 === zaderzhka ===
+
 ~ sprashival_pro_neyo = true
+
 Ты не уходишь.
 
 * [Спросить, давно ли она здесь работает]
@@ -219,10 +240,10 @@ VAR sprashival_pro_neyo = false
 * [Передумать. Уйти]
     -> uhod
 
-
-// ─── СЦЕНА 5: вопросы ─────────────────────────────────────
+// ─── СЦЕНА 5: ВОПРОСЫ ───────────────────────────────────────
 
 === vopros_davno ===
+
 "Давно?" — переспрашивает она.
 Смотрит куда-то мимо тебя.
 "Давно."
@@ -230,12 +251,14 @@ VAR sprashival_pro_neyo = false
 -> posle_voprosa
 
 === vopros_odna ===
+
 "Всегда."
 Пауза.
 "Кому ещё тут быть."
 -> posle_voprosa
 
 === vopros_chelovek ===
+
 Она моргает.
 Впервые за весь разговор.
 "А это важно?" — спрашивает она тихо.
@@ -258,6 +281,7 @@ VAR sprashival_pro_neyo = false
     -> posle_voprosa
 
 === vopros_glaza ===
+
 Она смотрит удивлённо.
 Впервые.
 "У моря нет глаз."
@@ -266,28 +290,31 @@ VAR sprashival_pro_neyo = false
 -> posle_voprosa
 
 === posle_voprosa ===
+
 Ты молчишь.
 Она тоже.
 
-* [Уйти]
++ [Уйти]
     -> uhod
 
-
-// ─── ФИНАЛЬНЫЕ СЦЕНЫ ──────────────────────────────────────
+// ─── ФИНАЛЬНЫЕ СЦЕНЫ ─────────────────────────────────────────
 
 === uhod ===
+
 Ты выходишь из магазина.
 Ветер. Чайки. Ржавая вывеска.
-{ sigarety_kupil: Пачка в кармане греет ладонь. }
+{ int_get("cigarettes_count") > 0: Пачка в кармане греет ладонь. }
 -> DONE
 
 === uhod_bez_pokupki ===
+
 Ты разворачиваешься и уходишь.
 Кассирша даже не смотрит вслед.
 На улице холодно.
 -> DONE
 
 === uhod_bez_oplaty ===
+
 Ты выходишь с пачкой в кармане.
 Никто не окликает.
 На улице неестественно тихо.

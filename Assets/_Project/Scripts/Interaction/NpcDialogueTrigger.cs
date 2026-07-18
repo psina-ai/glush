@@ -1,7 +1,7 @@
-using UnityEngine;
 using System.Collections;
-using Unity.Cinemachine;
 using Glush.Dialogue;
+using Unity.Cinemachine;
+using UnityEngine;
 
 namespace Glush.Interaction
 {
@@ -11,12 +11,21 @@ namespace Glush.Interaction
         [SerializeField] private string _promptText = "Поговорить";
         [SerializeField] private CinemachineCamera _dialogueCamera;
         [SerializeField] private float _cameraSwitchDelay = 0.35f;
-
-        // ID состояния Ink-истории для сохранения между разговорами
+        [SerializeField] private int _dialoguePriorityBoost = 10;
         [SerializeField] private string _storyStateId;
-
-        // Входной узел (knot) в Ink-сценарии для каждого нового визита
         [SerializeField] private string _entryKnot;
+
+        private Coroutine _cameraSwitchCoroutine;
+        private int _defaultCameraPriority;
+        private bool _ownsActiveDialogue;
+
+        private void Awake()
+        {
+            if (_dialogueCamera != null)
+            {
+                _defaultCameraPriority = _dialogueCamera.Priority.Value;
+            }
+        }
 
         private void OnEnable()
         {
@@ -26,6 +35,19 @@ namespace Glush.Interaction
         private void OnDisable()
         {
             InkDialogueRunner.OnDialogueEnded -= HandleDialogueEnded;
+
+            if (_cameraSwitchCoroutine != null)
+            {
+                StopCoroutine(_cameraSwitchCoroutine);
+                _cameraSwitchCoroutine = null;
+            }
+
+            if (_ownsActiveDialogue && _dialogueCamera != null)
+            {
+                _dialogueCamera.Priority = _defaultCameraPriority;
+            }
+
+            _ownsActiveDialogue = false;
         }
 
         public override string GetPrompt()
@@ -41,36 +63,66 @@ namespace Glush.Interaction
                 return;
             }
 
+            if (InkDialogueRunner.Instance == null)
+            {
+                Debug.LogError($"NpcDialogueTrigger ({name}): InkDialogueRunner отсутствует в сцене", this);
+                return;
+            }
+
             if (InkDialogueRunner.Instance.IsDialogueActive)
             {
                 Debug.LogWarning($"NpcDialogueTrigger ({name}): диалог уже активен", this);
                 return;
             }
 
-            // Передаём storyStateId и entryKnot в InkDialogueRunner
+            // Триггер должен возвращать только ту камеру, которую активировал сам.
+            _ownsActiveDialogue = true;
+
             InkDialogueRunner.Instance.RememberStoryStateId(_storyStateId);
             InkDialogueRunner.Instance.StartDialogue(_dialogueJson, _storyStateId, _entryKnot);
-            StartCoroutine(SwitchCameraDelayed(+10, _cameraSwitchDelay));
+
+            ScheduleCameraPriority(_defaultCameraPriority + _dialoguePriorityBoost);
         }
 
         private void HandleDialogueEnded()
         {
-            StartCoroutine(SwitchCameraDelayed(-10, _cameraSwitchDelay));
+            // Событие глобальное: монологи и другие NPC не должны менять эту камеру.
+            if (!_ownsActiveDialogue)
+            {
+                return;
+            }
+
+            _ownsActiveDialogue = false;
+            ScheduleCameraPriority(_defaultCameraPriority);
         }
 
-        private IEnumerator SwitchCameraDelayed(int delta, float delay)
+        private void ScheduleCameraPriority(int targetPriority)
         {
-            yield return new WaitForSeconds(delay);
-            BoostCameraPriority(delta);
+            if (_dialogueCamera == null)
+            {
+                return;
+            }
+
+            if (_cameraSwitchCoroutine != null)
+            {
+                StopCoroutine(_cameraSwitchCoroutine);
+            }
+
+            _cameraSwitchCoroutine = StartCoroutine(
+                SwitchCameraDelayed(targetPriority, _cameraSwitchDelay));
         }
 
-        private void BoostCameraPriority(int delta)
+        private IEnumerator SwitchCameraDelayed(int targetPriority, float delay)
         {
-            if (_dialogueCamera == null) return;
+            yield return new WaitForSecondsRealtime(delay);
 
-            int current = _dialogueCamera.Priority.Value;
-            _dialogueCamera.Priority = current + delta;
-            Debug.Log($"[Camera] {_dialogueCamera.name}: приоритет {current} → {current + delta}");
+            int previousPriority = _dialogueCamera.Priority.Value;
+            _dialogueCamera.Priority = targetPriority;
+            _cameraSwitchCoroutine = null;
+
+            Debug.Log(
+                $"[Camera] {_dialogueCamera.name}: приоритет {previousPriority} → {targetPriority}");
         }
     }
 }
+

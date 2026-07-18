@@ -49,6 +49,15 @@
           "processors": "",
           "interactions": "",
           "initialStateCheck": false
+        },
+        {
+          "name": "Smoke",
+          "type": "Button",
+          "id": "f8a7b6c5-d4e3-4i2h-1g0f-0k9j8i7h6g5f",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "",
+          "initialStateCheck": false
         }
       ],
       "bindings": [
@@ -203,6 +212,17 @@
           "processors": "",
           "groups": "Gamepad",
           "action": "Interact",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "c4a77e1c-8862-534a-a19c-b22d6ce06a41",
+          "path": "<Keyboard>/c",
+          "interactions": "",
+          "processors": "",
+          "groups": "Keyboard&Mouse",
+          "action": "Smoke",
           "isComposite": false,
           "isPartOfComposite": false
         }

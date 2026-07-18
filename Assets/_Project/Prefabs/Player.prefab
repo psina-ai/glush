@@ -304,6 +304,7 @@ GameObject:
   - component: {fileID: 254880317379918799}
   - component: {fileID: 8837572622476932567}
   - component: {fileID: 5228743563044783375}
+  - component: {fileID: 6949908931039508907}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -440,7 +441,22 @@ MonoBehaviour:
   _config: {fileID: 11400000, guid: c02bce33c535c2444aadb02e3aedde7c, type: 2}
   _camera: {fileID: 2313618431628126521}
   _overrideDistance: 0
-  _overrideRaycastDistance: 1.25
+  _overrideRaycastDistance: 2
+--- !u!114 &6949908931039508907
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5870147087829648477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a032cb9620312774d991ad732d0c070f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Glush.Player.PlayerSmoking
+  _smokingDialogueJson: {fileID: 4900000, guid: 07d94a5eb135faf49b55d65d7caebbe0, type: 3}
+  _storyStateId: smoking_default
+  _entryKnot: smoking_entry
 --- !u!1 &6046061876405567088
 GameObject:
   m_ObjectHideFlags: 0
