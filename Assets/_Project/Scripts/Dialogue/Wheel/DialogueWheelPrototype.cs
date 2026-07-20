@@ -20,6 +20,7 @@ namespace Glush.Dialogue
         [Header("Wheel Setup")]
         [SerializeField] private RectTransform _wheelContainer;
         [SerializeField] private TMP_Text _itemTemplate;
+        [SerializeField] private WheelRuleView _ruleTemplate;
 
         [Header("Input & Scroll")]
         [SerializeField] private float _scrollSensitivity = 1f;
@@ -29,7 +30,7 @@ namespace Glush.Dialogue
         [Header("Audio")]
         [SerializeField] private AudioSource _audioSource;
         [SerializeField] private AudioClip _wheelClickClip;
-        [SerializeField] private int _maxSimultaneousClicks = 4;
+        [SerializeField] private int _maxSimultaneousClicks = 6;
 
         [Header("Test Data")]
         [SerializeField] private float _newLineSpawnInterval = 3f;
@@ -52,7 +53,10 @@ namespace Glush.Dialogue
         };
 
         private readonly List<WheelItemView> _itemViews = new();
+        private readonly List<WheelRuleView> _ruleViews = new();
         private readonly Queue<float> _activeClickEndTimes = new();
+
+        private WheelItemView _itemProjectionTemplate;
 
         private WheelMotionController _motionController;
         private Canvas _canvas;
@@ -77,17 +81,29 @@ namespace Glush.Dialogue
                 return;
             }
 
-            if (_itemTemplate == null)
+            if (_itemTemplate == null || _ruleTemplate == null)
             {
                 Debug.LogError(
-                    "DialogueWheelPrototype: ItemTemplate не назначен. Компонент отключён.",
+                    "DialogueWheelPrototype: не назначен ItemTemplate или RuleTemplate. " +
+                    "Компонент отключён.",
                     this);
                 enabled = false;
                 return;
             }
 
-            // Шаблон служит только источником для копий и не должен попадать на экран.
+            _itemProjectionTemplate = _itemTemplate.GetComponent<WheelItemView>();
+            if (_itemProjectionTemplate == null)
+            {
+                Debug.LogError(
+                    "DialogueWheelPrototype: на ItemTemplate отсутствует WheelItemView.",
+                    this);
+                enabled = false;
+                return;
+            }
+
+            // Шаблоны служат только источниками для копий и не попадают на экран.
             _itemTemplate.gameObject.SetActive(false);
+            _ruleTemplate.gameObject.SetActive(false);
 
             _motionController = GetComponent<WheelMotionController>();
             if (_motionController == null)
@@ -100,6 +116,7 @@ namespace Glush.Dialogue
 
         private void Start()
         {
+            AddRule(0f, isDouble: true);
             AddNewLine(_testLines[0]);
             _nextSpawnTime = Time.unscaledTime + _newLineSpawnInterval;
         }
@@ -230,6 +247,11 @@ namespace Glush.Dialogue
             {
                 view.UpdateProjection(_wheelPosition);
             }
+
+            foreach (WheelRuleView rule in _ruleViews)
+            {
+                rule.UpdateProjection(_wheelPosition);
+            }
         }
 
         private void TrySpawnNextLine()
@@ -284,6 +306,20 @@ namespace Glush.Dialogue
             // Копия наследует неактивное состояние шаблона, поэтому включаем только её.
             newItem.gameObject.SetActive(true);
             view.UpdateProjection(_wheelPosition);
+
+            bool isBlockEnd = _spawnedLineCount >= TargetLineCount;
+            AddRule(_itemViews.Count, isBlockEnd);
+        }
+
+        private void AddRule(float boundaryPosition, bool isDouble)
+        {
+            WheelRuleView rule = Instantiate(_ruleTemplate, _wheelContainer);
+            rule.CopyProjectionSettingsFrom(_itemProjectionTemplate);
+            rule.Configure(boundaryPosition, isDouble);
+            _ruleViews.Add(rule);
+
+            rule.gameObject.SetActive(true);
+            rule.UpdateProjection(_wheelPosition);
         }
 
         private void DetectBoundaryCrossings(float oldPosition, float newPosition)

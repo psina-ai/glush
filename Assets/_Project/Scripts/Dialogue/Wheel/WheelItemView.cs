@@ -30,6 +30,22 @@ namespace Glush.Dialogue
             _itemCenterPosition = centerPosition;
         }
 
+        public void CopyProjectionSettingsFrom(WheelItemView source)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            _angleStep = source._angleStep;
+            _cylinderRadius = source._cylinderRadius;
+            _edgeHorizontalScale = source._edgeHorizontalScale;
+            _alphaDepthPower = source._alphaDepthPower;
+            _alphaByDepth = source._alphaByDepth != null
+                ? new AnimationCurve(source._alphaByDepth.keys)
+                : AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        }
+
         public void UpdateProjection(float wheelPosition)
         {
             EnsureInitialized();
