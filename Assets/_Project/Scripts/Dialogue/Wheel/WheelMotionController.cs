@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Glush.Dialogue
 {
     /// <summary>
-    /// Контроллер физических фаз движения барабана.
-    /// Управляет Idle, AutoMove, Inertia, Snap на основе wheelPosition.
+    /// Управляет автоматическим движением, ручным перетаскиванием,
+    /// инерцией и магнитом барабана.
     /// </summary>
     public class WheelMotionController : MonoBehaviour
     {
@@ -12,171 +12,198 @@ namespace Glush.Dialogue
         {
             Idle,
             AutoMove,
+            Dragging,
             Inertia,
             Snap
         }
 
         [Header("Motion Phases")]
-        [SerializeField] private float _autoMoveSpeed = 1.5f;      // единиц в секунду к целевому центру
-        [SerializeField] private float _inertiaFriction = 0.95f;   // коэффициент сохранения скорости на 60 FPS; применять через Mathf.Pow для независимости от FPS
-        [SerializeField] private float _snapSpringStrength = 15f;  // жёсткость пружины для snap
-        [SerializeField] private float _velocityThreshold = 0.01f; // минимальная скорость перед snap
-        [SerializeField] private float _centerTolerance = 0.02f;   // расстояние до центра считается "достигнут"
+        [SerializeField] private float _autoMoveSpeed = 1.5f;
+        [SerializeField] private float _inertiaFriction = 0.95f;
+        [SerializeField] private float _snapSpringStrength = 5f;
+        [SerializeField] private float _velocityThreshold = 0.01f;
+        [SerializeField] private float _centerTolerance = 0.02f;
 
         private MotionPhase _phase = MotionPhase.Idle;
-        private float _velocity = 0f;
-        private float _autoMoveTarget = 0.5f;  // целевой центр при AutoMove
-        private float _snapTarget = 0.5f;      // целевой центр при Snap
+        private float _velocity;
+        private float _autoMoveTarget = 0.5f;
+        private float _snapTarget = 0.5f;
+        private float _pendingDragDelta;
+        private bool _finishDragAfterUpdate;
 
         public MotionPhase Phase => _phase;
         public float Velocity => _velocity;
+        public float VelocityThreshold => _velocityThreshold;
         public float CenterTolerance => _centerTolerance;
+        public bool IsInMotion => _phase != MotionPhase.Idle;
 
-        /// <summary>
-        /// Инициировать пользовательский scroll-импульс (немедленно -> Inertia).
-        /// </summary>
         public void ApplyScrollImpulse(float deltaScroll)
         {
             _velocity = deltaScroll;
             _phase = MotionPhase.Inertia;
         }
 
-        /// <summary>
-        /// Начать AutoMove к новому live target.
-        /// </summary>
+        public void BeginDrag()
+        {
+            _pendingDragDelta = 0f;
+            _finishDragAfterUpdate = false;
+            _velocity = 0f;
+            _phase = MotionPhase.Dragging;
+        }
+
+        public void ApplyDragDelta(float deltaPosition)
+        {
+            if (_phase != MotionPhase.Dragging)
+            {
+                BeginDrag();
+            }
+
+            _pendingDragDelta += deltaPosition;
+            _velocity = 0f;
+        }
+
+        public void EndDrag()
+        {
+            if (_phase == MotionPhase.Dragging)
+            {
+                // ЛКМ двигает барабан напрямую: после отпускания он сразу останавливается.
+                // Последний drag-delta всё равно будет применён в ближайшем UpdateMotion.
+                _velocity = 0f;
+                _finishDragAfterUpdate = true;
+            }
+        }
+
         public void StartAutoMove(float targetCenter)
         {
             _autoMoveTarget = targetCenter;
-            _phase = MotionPhase.AutoMove;
+            ResetDragState();
             _velocity = 0f;
+            _phase = MotionPhase.AutoMove;
         }
 
-        /// <summary>
-        /// Прекратить AutoMove (обычно из-за пользовательского scroll).
-        /// </summary>
         public void StopAutoMove()
         {
             if (_phase == MotionPhase.AutoMove)
+            {
                 _phase = MotionPhase.Idle;
+            }
         }
 
-        /// <summary>
-        /// Начать Snap к ближайшему N+0.5.
-        /// </summary>
-        public void StartSnap(float snapTargetCenter)
+        public void StartSnap(float targetCenter)
         {
-            _snapTarget = snapTargetCenter;
-            _phase = MotionPhase.Snap;
+            _snapTarget = targetCenter;
+            ResetDragState();
             _velocity = 0f;
+            _phase = MotionPhase.Snap;
         }
 
-        /// <summary>
-        /// Обновить фазу движения, вернуть дельту для wheelPosition.
-        /// </summary>
-        public float UpdateMotion(float currentWheelPosition, int itemCount)
+        public float UpdateMotion(float currentWheelPosition)
         {
-            float deltaPosition = 0f;
+            float deltaTime = Time.unscaledDeltaTime;
 
             switch (_phase)
             {
                 case MotionPhase.Idle:
-                    // Нет движения
-                    break;
+                    return 0f;
 
                 case MotionPhase.AutoMove:
-                    // Движение к целевому центру
-                    float distance = _autoMoveTarget - currentWheelPosition;
-                    
-                    // Защита от "оборота" через границы
-                    if (Mathf.Abs(distance) > itemCount * 0.5f)
-                    {
-                        if (distance > 0)
-                            distance -= itemCount;
-                        else
-                            distance += itemCount;
-                    }
+                    return UpdateAutoMove(currentWheelPosition, deltaTime);
 
-                    if (Mathf.Abs(distance) <= _centerTolerance)
-                    {
-                        deltaPosition = 0f;
-                        _phase = MotionPhase.Idle;
-                    }
-                    else
-                    {
-                        deltaPosition = Mathf.Sign(distance) * _autoMoveSpeed * Time.unscaledDeltaTime;
-                    }
-                    break;
+                case MotionPhase.Dragging:
+                    return UpdateDragging();
 
                 case MotionPhase.Inertia:
-                    // Движение с затуханием, скорректировано для независимости от FPS
-                    deltaPosition = _velocity * Time.unscaledDeltaTime;
-                    
-                    // Применить затухание через Pow для FPS-независимости:
-                    // inertiaFriction 0.95 = сохранение 95% скорости за 1 кадр на 60 FPS
-                    _velocity *= Mathf.Pow(_inertiaFriction, Time.unscaledDeltaTime * 60f);
-
-                    if (Mathf.Abs(_velocity) < _velocityThreshold)
-                    {
-                        // Инерция закончилась, переходим в Snap
-                        float nearest = FindNearestCenter(currentWheelPosition + deltaPosition);
-                        StartSnap(nearest);
-                        _velocity = 0f;
-                    }
-                    break;
+                    return UpdateInertia(deltaTime);
 
                 case MotionPhase.Snap:
-                    // Пружина к целевому центру
-                    float snapDistance = _snapTarget - currentWheelPosition;
+                    return UpdateSnap(currentWheelPosition, deltaTime);
 
-                    // Защита от оборота
-                    if (Mathf.Abs(snapDistance) > itemCount * 0.5f)
-                    {
-                        if (snapDistance > 0)
-                            snapDistance -= itemCount;
-                        else
-                            snapDistance += itemCount;
-                    }
+                default:
+                    return 0f;
+            }
+        }
 
-                    if (Mathf.Abs(snapDistance) <= _centerTolerance)
-                    {
-                        // Точно установить целевой центр и завершить
-                        deltaPosition = _snapTarget - currentWheelPosition;
-                        _velocity = 0f;
-                        _phase = MotionPhase.Idle;
-                    }
-                    else
-                    {
-                        // Пружинный закон: применить силу и вычислить смещение
-                        float springForce = snapDistance * _snapSpringStrength;
-                        deltaPosition = springForce * Time.unscaledDeltaTime;
-                    }
-                    break;
+        public void SetPhase(MotionPhase newPhase)
+        {
+            _phase = newPhase;
+        }
+
+        public void ZeroVelocity()
+        {
+            _velocity = 0f;
+        }
+
+        private float UpdateAutoMove(float currentWheelPosition, float deltaTime)
+        {
+            float nextPosition = Mathf.MoveTowards(
+                currentWheelPosition,
+                _autoMoveTarget,
+                _autoMoveSpeed * deltaTime);
+
+            if (Mathf.Abs(nextPosition - _autoMoveTarget) <= _centerTolerance)
+            {
+                nextPosition = _autoMoveTarget;
+                _phase = MotionPhase.Idle;
+            }
+
+            return nextPosition - currentWheelPosition;
+        }
+
+        private float UpdateDragging()
+        {
+            float deltaPosition = _pendingDragDelta;
+            _pendingDragDelta = 0f;
+
+            if (_finishDragAfterUpdate)
+            {
+                _finishDragAfterUpdate = false;
+                _phase = MotionPhase.Inertia;
             }
 
             return deltaPosition;
         }
 
-        /// <summary>
-        /// Найти ближайший центр N+0.5 к текущей позиции.
-        /// </summary>
-        private float FindNearestCenter(float position)
+        private float UpdateInertia(float deltaTime)
         {
-            float floor = Mathf.Floor(position);
-            float center1 = floor + 0.5f;
-            float center2 = center1 + 1f;
+            float deltaPosition = _velocity * deltaTime;
+            _velocity *= Mathf.Pow(_inertiaFriction, deltaTime * 60f);
 
-            return Mathf.Abs(position - center1) < Mathf.Abs(position - center2)
-                ? center1
-                : center2;
+            // Переход в Snap выполняет внешний контроллер после задержки ввода.
+            if (Mathf.Abs(_velocity) < _velocityThreshold)
+            {
+                _velocity = 0f;
+            }
+
+            return deltaPosition;
         }
 
-        public bool IsInMotion => _phase != MotionPhase.Idle;
+        private float UpdateSnap(float currentWheelPosition, float deltaTime)
+        {
+            float distance = _snapTarget - currentWheelPosition;
 
-        public void SetPhase(MotionPhase newPhase) => _phase = newPhase;
+            if (Mathf.Abs(distance) <= _centerTolerance)
+            {
+                _phase = MotionPhase.Idle;
+                return distance;
+            }
 
-        /// <summary>
-        /// Обнулить скорость (используется при зажатии wheelPosition границей).
-        /// </summary>
-        public void ZeroVelocity() => _velocity = 0f;
+            float interpolation = 1f - Mathf.Exp(-_snapSpringStrength * deltaTime);
+            return distance * interpolation;
+        }
+
+        private void ResetDragState()
+        {
+            _pendingDragDelta = 0f;
+            _finishDragAfterUpdate = false;
+        }
+
+        private void OnValidate()
+        {
+            _autoMoveSpeed = Mathf.Max(0.01f, _autoMoveSpeed);
+            _inertiaFriction = Mathf.Clamp(_inertiaFriction, 0.01f, 0.999f);
+            _snapSpringStrength = Mathf.Max(0.01f, _snapSpringStrength);
+            _velocityThreshold = Mathf.Max(0.0001f, _velocityThreshold);
+            _centerTolerance = Mathf.Max(0.0001f, _centerTolerance);
+        }
     }
 }

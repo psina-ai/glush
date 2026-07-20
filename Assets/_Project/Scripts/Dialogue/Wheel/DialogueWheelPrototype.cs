@@ -8,7 +8,8 @@ namespace Glush.Dialogue
     /// <summary>
     /// Изолированный прототип физики Dialogue Wheel на тестовых строках.
     /// </summary>
-    public class DialogueWheelPrototype : MonoBehaviour, IScrollHandler
+    public class DialogueWheelPrototype : MonoBehaviour, IScrollHandler,
+        IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public enum FollowMode
         {
@@ -22,11 +23,13 @@ namespace Glush.Dialogue
 
         [Header("Input & Scroll")]
         [SerializeField] private float _scrollSensitivity = 1f;
+        [SerializeField] private float _dragPixelsPerItem = 90f;
         [SerializeField] private float _releaseDetectionTime = 0.5f;
 
         [Header("Audio")]
         [SerializeField] private AudioSource _audioSource;
         [SerializeField] private AudioClip _wheelClickClip;
+        [SerializeField] private int _maxSimultaneousClicks = 4;
 
         [Header("Test Data")]
         [SerializeField] private float _newLineSpawnInterval = 3f;
@@ -49,8 +52,11 @@ namespace Glush.Dialogue
         };
 
         private readonly List<WheelItemView> _itemViews = new();
+        private readonly Queue<float> _activeClickEndTimes = new();
 
         private WheelMotionController _motionController;
+        private Canvas _canvas;
+        private bool _isDragging;
         private float _wheelPosition = 0.5f;
         private FollowMode _followMode = FollowMode.FollowingLive;
         private float _liveTargetCenter = 0.5f;
@@ -88,6 +94,8 @@ namespace Glush.Dialogue
             {
                 _motionController = gameObject.AddComponent<WheelMotionController>();
             }
+
+            _canvas = GetComponentInParent<Canvas>();
         }
 
         private void Start()
@@ -107,33 +115,78 @@ namespace Glush.Dialogue
 
         public void OnScroll(PointerEventData eventData)
         {
-            if (_motionController == null)
+            if (_motionController == null || _isDragging)
             {
                 return;
             }
 
-            _followMode = FollowMode.Detached;
-            _motionController.StopAutoMove();
-
-            // Разные мыши и тачпады могут присылать дельту от долей единицы до ±120.
-            // Ограничиваем один UI-event одним нормализованным импульсом.
             float normalizedScroll = Mathf.Clamp(eventData.scrollDelta.y, -1f, 1f);
             if (Mathf.Approximately(normalizedScroll, 0f))
             {
                 return;
             }
 
-            float scrollDelta = -normalizedScroll * _scrollSensitivity;
-            _motionController.ApplyScrollImpulse(scrollDelta);
+            DetachFromLive();
+            _motionController.ApplyScrollImpulse(
+                -normalizedScroll * _scrollSensitivity);
             _lastScrollTime = Time.unscaledTime;
+        }
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (eventData.button != PointerEventData.InputButton.Left ||
+                _motionController == null)
+            {
+                return;
+            }
+
+            _isDragging = true;
+            DetachFromLive();
+            _motionController.BeginDrag();
+            _lastScrollTime = Time.unscaledTime;
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (!_isDragging ||
+                eventData.button != PointerEventData.InputButton.Left)
+            {
+                return;
+            }
+
+            float canvasScale = _canvas != null
+                ? Mathf.Max(0.0001f, _canvas.scaleFactor)
+                : 1f;
+            float localDeltaY = eventData.delta.y / canvasScale;
+            float wheelDelta = localDeltaY / Mathf.Max(1f, _dragPixelsPerItem);
+
+            _motionController.ApplyDragDelta(wheelDelta);
+            _lastScrollTime = Time.unscaledTime;
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (!_isDragging ||
+                eventData.button != PointerEventData.InputButton.Left)
+            {
+                return;
+            }
+
+            _isDragging = false;
+            _motionController.EndDrag();
+            _lastScrollTime = Time.unscaledTime;
+        }
+
+        private void DetachFromLive()
+        {
+            _followMode = FollowMode.Detached;
+            _motionController.StopAutoMove();
         }
 
         private void UpdateWheelPosition()
         {
             float oldPosition = _wheelPosition;
-            float motionDelta = _motionController.UpdateMotion(
-                _wheelPosition,
-                _itemViews.Count);
+            float motionDelta = _motionController.UpdateMotion(_wheelPosition);
 
             float requestedPosition = oldPosition + motionDelta;
             float clampedPosition = ClampWheelPosition(requestedPosition);
@@ -202,7 +255,7 @@ namespace Glush.Dialogue
         {
             if (Time.unscaledTime - _lastScrollTime <= _releaseDetectionTime ||
                 _motionController.Phase != WheelMotionController.MotionPhase.Inertia ||
-                Mathf.Abs(_motionController.Velocity) >= 0.1f)
+                Mathf.Abs(_motionController.Velocity) >= _motionController.VelocityThreshold)
             {
                 return;
             }
@@ -259,10 +312,28 @@ namespace Glush.Dialogue
 
         private void PlayWheelClick()
         {
-            if (_audioSource != null && _wheelClickClip != null)
+            if (_audioSource == null || _wheelClickClip == null)
             {
-                _audioSource.PlayOneShot(_wheelClickClip);
+                return;
             }
+
+            float now = Time.unscaledTime;
+            while (_activeClickEndTimes.Count > 0 &&
+                   _activeClickEndTimes.Peek() <= now)
+            {
+                _activeClickEndTimes.Dequeue();
+            }
+
+            if (_activeClickEndTimes.Count >= _maxSimultaneousClicks)
+            {
+                return;
+            }
+
+            _audioSource.PlayOneShot(_wheelClickClip);
+
+            float effectivePitch = Mathf.Max(0.01f, Mathf.Abs(_audioSource.pitch));
+            float clickDuration = _wheelClickClip.length / effectivePitch;
+            _activeClickEndTimes.Enqueue(now + clickDuration);
         }
 
         private static float FindNearestCenter(float position)
@@ -280,6 +351,28 @@ namespace Glush.Dialogue
             float minPosition = 0.5f;
             float maxPosition = _itemViews.Count - 0.5f;
             return Mathf.Clamp(position, minPosition, maxPosition);
+        }
+
+        private void OnDisable()
+        {
+            _isDragging = false;
+            _activeClickEndTimes.Clear();
+
+            if (_motionController != null)
+            {
+                _motionController.ZeroVelocity();
+                _motionController.SetPhase(WheelMotionController.MotionPhase.Idle);
+            }
+        }
+
+        private void OnValidate()
+        {
+            _scrollSensitivity = Mathf.Max(0.01f, _scrollSensitivity);
+            _dragPixelsPerItem = Mathf.Max(1f, _dragPixelsPerItem);
+            _releaseDetectionTime = Mathf.Max(0f, _releaseDetectionTime);
+            _maxSimultaneousClicks = Mathf.Max(1, _maxSimultaneousClicks);
+            _newLineSpawnInterval = Mathf.Max(0.01f, _newLineSpawnInterval);
+            _testLineCount = Mathf.Max(1, _testLineCount);
         }
     }
 }
