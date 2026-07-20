@@ -115,7 +115,15 @@ namespace Glush.Dialogue
             _followMode = FollowMode.Detached;
             _motionController.StopAutoMove();
 
-            float scrollDelta = -eventData.scrollDelta.y * _scrollSensitivity;
+            // Разные мыши и тачпады могут присылать дельту от долей единицы до ±120.
+            // Ограничиваем один UI-event одним нормализованным импульсом.
+            float normalizedScroll = Mathf.Clamp(eventData.scrollDelta.y, -1f, 1f);
+            if (Mathf.Approximately(normalizedScroll, 0f))
+            {
+                return;
+            }
+
+            float scrollDelta = -normalizedScroll * _scrollSensitivity;
             _motionController.ApplyScrollImpulse(scrollDelta);
             _lastScrollTime = Time.unscaledTime;
         }
