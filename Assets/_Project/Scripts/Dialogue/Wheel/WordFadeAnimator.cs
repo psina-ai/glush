@@ -12,6 +12,10 @@ namespace Glush.Dialogue
     public class WordFadeAnimator : MonoBehaviour
     {
         private TMP_Text _text;
+        private bool _isRevealing;
+        private bool _completeRequested;
+
+        public bool IsRevealing => _isRevealing;
 
         private void Awake()
         {
@@ -27,15 +31,24 @@ namespace Glush.Dialogue
             _text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
         }
 
+        public void CompleteImmediately()
+        {
+            if (_isRevealing)
+            {
+                _completeRequested = true;
+            }
+        }
+
         public IEnumerator Reveal(float wordFadeDuration, float delayBetweenWords)
         {
             PrepareHidden();
             TMP_TextInfo textInfo = _text.textInfo;
+            _isRevealing = true;
+            _completeRequested = false;
 
             if (textInfo.wordCount == 0)
             {
-                SetAllVisibleCharactersAlpha(textInfo, 255);
-                _text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+                CompleteAll(textInfo);
                 yield break;
             }
 
@@ -46,11 +59,23 @@ namespace Glush.Dialogue
                     wordIndex,
                     Mathf.Max(0f, wordFadeDuration));
 
+                if (_completeRequested)
+                {
+                    break;
+                }
+
                 if (delayBetweenWords > 0f && wordIndex < textInfo.wordCount - 1)
                 {
-                    yield return new WaitForSecondsRealtime(delayBetweenWords);
+                    float elapsed = 0f;
+                    while (elapsed < delayBetweenWords && !_completeRequested)
+                    {
+                        elapsed += Time.unscaledDeltaTime;
+                        yield return null;
+                    }
                 }
             }
+
+            CompleteAll(textInfo);
         }
 
         private IEnumerator FadeWord(
@@ -66,7 +91,7 @@ namespace Glush.Dialogue
             }
 
             float elapsed = 0f;
-            while (elapsed < duration)
+            while (elapsed < duration && !_completeRequested)
             {
                 elapsed += Time.unscaledDeltaTime;
                 byte alpha = (byte)Mathf.RoundToInt(
@@ -79,6 +104,20 @@ namespace Glush.Dialogue
 
             SetWordAlpha(textInfo, wordIndex, 255);
             _text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+        }
+
+        private void CompleteAll(TMP_TextInfo textInfo)
+        {
+            SetAllVisibleCharactersAlpha(textInfo, 255);
+            _text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+            _completeRequested = false;
+            _isRevealing = false;
+        }
+
+        private void OnDisable()
+        {
+            _completeRequested = false;
+            _isRevealing = false;
         }
 
         private static void SetAllVisibleCharactersAlpha(

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 namespace Glush.Dialogue
 {
@@ -18,6 +19,25 @@ namespace Glush.Dialogue
             Detached
         }
 
+        [System.Serializable]
+        private struct TestBlockSettings
+        {
+            [SerializeField] private int _lineCount;
+            [SerializeField] private float _pauseAfter;
+            [SerializeField] private int _gapCount;
+
+            public int LineCount => Mathf.Max(1, _lineCount);
+            public float PauseAfter => Mathf.Max(0f, _pauseAfter);
+            public int GapCount => Mathf.Max(0, _gapCount);
+
+            public TestBlockSettings(int lineCount, float pauseAfter, int gapCount)
+            {
+                _lineCount = lineCount;
+                _pauseAfter = pauseAfter;
+                _gapCount = gapCount;
+            }
+        }
+
         [Header("Wheel Setup")]
         [SerializeField] private RectTransform _wheelContainer;
         [SerializeField] private TMP_Text _itemTemplate;
@@ -27,6 +47,8 @@ namespace Glush.Dialogue
         [SerializeField] private float _scrollSensitivity = 1f;
         [SerializeField] private float _dragPixelsPerItem = 90f;
         [SerializeField] private float _releaseDetectionTime = 0.5f;
+        [SerializeField] private TMP_Text _advanceIndicator;
+        [SerializeField] private string _advanceIndicatorText = "Нажмите Пробел";
 
         [Header("Audio")]
         [SerializeField] private AudioSource _audioSource;
@@ -35,11 +57,18 @@ namespace Glush.Dialogue
         [SerializeField] private int _maxSimultaneousClicks = 6;
 
         [Header("Test Presentation")]
-        [SerializeField] private int _testLineCount = 12;
         [SerializeField] private float _wordFadeDuration = 0.12f;
         [SerializeField] private float _delayBetweenWords = 0.04f;
         [SerializeField] private float _ruleFadeDuration = 0.2f;
         [SerializeField] private float _delayBetweenLines = 0.15f;
+        [SerializeField] private float _spaceAutoMoveSpeed = 4.5f;
+        [SerializeField] private bool _lockHistoryUntilBlockComplete;
+        [SerializeField] private TestBlockSettings[] _testBlocks =
+        {
+            new TestBlockSettings(3, 0f, 3),
+            new TestBlockSettings(4, 1.5f, 2),
+            new TestBlockSettings(5, 0f, 3)
+        };
 
         private readonly List<string> _testLines = new()
         {
@@ -65,13 +94,17 @@ namespace Glush.Dialogue
 
         private WheelMotionController _motionController;
         private Canvas _canvas;
+        private InputAction _advanceAction;
+        private WordFadeAnimator _activeWordFade;
         private bool _isDragging;
+        private bool _isWritingBlock;
+        private bool _isWaitingForAdvance;
+        private bool _advanceRequested;
+        private bool _carryFastTransitionIntoNextLine;
         private float _wheelPosition = 0.5f;
         private FollowMode _followMode = FollowMode.FollowingLive;
         private float _liveTargetCenter = 0.5f;
         private float _lastScrollTime;
-
-        private int TargetLineCount => Mathf.Clamp(_testLineCount, 1, _testLines.Count);
 
         private void Awake()
         {
@@ -115,11 +148,31 @@ namespace Glush.Dialogue
             }
 
             _canvas = GetComponentInParent<Canvas>();
+            _advanceAction = new InputAction(
+                "DialogueWheelAdvance",
+                InputActionType.Button,
+                "<Keyboard>/space");
+
+            if (_advanceIndicator != null)
+            {
+                _advanceIndicator.gameObject.SetActive(false);
+            }
+        }
+
+        private void OnEnable()
+        {
+            if (_advanceAction == null)
+            {
+                return;
+            }
+
+            _advanceAction.performed += HandleAdvancePerformed;
+            _advanceAction.Enable();
         }
 
         private void Start()
         {
-            StartCoroutine(RunTestBlock());
+            StartCoroutine(RunTestPresentation());
         }
 
         private void Update()
@@ -128,11 +181,12 @@ namespace Glush.Dialogue
             UpdateFollowMode();
             UpdateViews();
             TryStartSnap();
+            UpdateAdvanceIndicator();
         }
 
         public void OnScroll(PointerEventData eventData)
         {
-            if (_motionController == null || _isDragging)
+            if (_motionController == null || _isDragging || !CanBrowseHistoryNow())
             {
                 return;
             }
@@ -152,7 +206,8 @@ namespace Glush.Dialogue
         public void OnBeginDrag(PointerEventData eventData)
         {
             if (eventData.button != PointerEventData.InputButton.Left ||
-                _motionController == null)
+                _motionController == null ||
+                !CanBrowseHistoryNow())
             {
                 return;
             }
@@ -166,7 +221,8 @@ namespace Glush.Dialogue
         public void OnDrag(PointerEventData eventData)
         {
             if (!_isDragging ||
-                eventData.button != PointerEventData.InputButton.Left)
+                eventData.button != PointerEventData.InputButton.Left ||
+                !CanBrowseHistoryNow())
             {
                 return;
             }
@@ -192,6 +248,73 @@ namespace Glush.Dialogue
             _isDragging = false;
             _motionController.EndDrag();
             _lastScrollTime = Time.unscaledTime;
+        }
+
+        private void HandleAdvancePerformed(InputAction.CallbackContext context)
+        {
+            if (_motionController == null)
+            {
+                return;
+            }
+
+            bool isAtLivePosition =
+                Mathf.Abs(_wheelPosition - _liveTargetCenter) <=
+                _motionController.CenterTolerance;
+
+            // На нижней границе колесо может уже стоять физически, но ещё числиться
+            // в Inertia/Snap. Такое состояние не должно съедать первое нажатие.
+            if (!isAtLivePosition)
+            {
+                _followMode = FollowMode.FollowingLive;
+                _motionController.StartAutoMove(
+                    _liveTargetCenter,
+                    _spaceAutoMoveSpeed);
+                return;
+            }
+
+            _isDragging = false;
+            _followMode = FollowMode.FollowingLive;
+            _motionController.ZeroVelocity();
+            _motionController.SetPhase(WheelMotionController.MotionPhase.Idle);
+
+            if (_activeWordFade != null && _activeWordFade.IsRevealing)
+            {
+                _activeWordFade.CompleteImmediately();
+                return;
+            }
+
+            if (_isWaitingForAdvance)
+            {
+                _advanceRequested = true;
+            }
+        }
+
+        private void UpdateAdvanceIndicator()
+        {
+            if (_advanceIndicator == null || _motionController == null)
+            {
+                return;
+            }
+
+            bool isAtLivePosition =
+                Mathf.Abs(_wheelPosition - _liveTargetCenter) <=
+                _motionController.CenterTolerance;
+            bool shouldShow = _isWaitingForAdvance && isAtLivePosition;
+
+            if (shouldShow)
+            {
+                _advanceIndicator.text = _advanceIndicatorText;
+            }
+
+            if (_advanceIndicator.gameObject.activeSelf != shouldShow)
+            {
+                _advanceIndicator.gameObject.SetActive(shouldShow);
+            }
+        }
+
+        private bool CanBrowseHistoryNow()
+        {
+            return !_lockHistoryUntilBlockComplete || !_isWritingBlock;
         }
 
         private void DetachFromLive()
@@ -254,32 +377,98 @@ namespace Glush.Dialogue
             }
         }
 
-        private IEnumerator RunTestBlock()
+        private IEnumerator RunTestPresentation()
         {
-            WheelRuleView startRule = AddRule(0f, isDouble: true);
-            yield return startRule.FadeIn(_ruleFadeDuration);
+            int lineCursor = 0;
 
-            for (int lineIndex = 0; lineIndex < TargetLineCount; lineIndex++)
+            if (_testBlocks != null)
             {
-                if (lineIndex > 0)
+                foreach (TestBlockSettings block in _testBlocks)
                 {
-                    WheelRuleView separator = AddRule(lineIndex, isDouble: false);
-                    yield return separator.FadeIn(_ruleFadeDuration);
+                    if (lineCursor >= _testLines.Count)
+                    {
+                        yield break;
+                    }
+
+                    int lineCount = Mathf.Min(
+                        block.LineCount,
+                        _testLines.Count - lineCursor);
+
+                    yield return RunTestBlock(lineCursor, lineCount);
+                    lineCursor += lineCount;
+                    yield return RunBlockTransition(
+                        block,
+                        lineCursor < _testLines.Count);
+                }
+            }
+
+            if (lineCursor < _testLines.Count)
+            {
+                TestBlockSettings fallback = new TestBlockSettings(
+                    _testLines.Count - lineCursor,
+                    0f,
+                    3);
+
+                yield return RunTestBlock(
+                    lineCursor,
+                    _testLines.Count - lineCursor);
+                yield return RunBlockTransition(fallback, hasMoreContent: false);
+            }
+        }
+
+        private IEnumerator RunTestBlock(int startLine, int lineCount)
+        {
+            _isWritingBlock = true;
+
+            if (_lockHistoryUntilBlockComplete)
+            {
+                _isDragging = false;
+                _followMode = FollowMode.FollowingLive;
+            }
+
+            WheelRuleView startRule = AddRule(_itemViews.Count, isDouble: true);
+            StartCoroutine(startRule.FadeIn(_ruleFadeDuration));
+
+            for (int localIndex = 0; localIndex < lineCount; localIndex++)
+            {
+                if (localIndex > 0)
+                {
+                    WheelRuleView separator = AddRule(
+                        _itemViews.Count,
+                        isDouble: false);
+                    StartCoroutine(separator.FadeIn(_ruleFadeDuration));
                 }
 
-                WordFadeAnimator wordFade = AddNewLine(_testLines[lineIndex]);
+                WordFadeAnimator wordFade = AddNewLine(
+                    _testLines[startLine + localIndex]);
+
+                bool useFastTransition =
+                    localIndex == 0 && _carryFastTransitionIntoNextLine;
+                _carryFastTransitionIntoNextLine = false;
 
                 if (_followMode == FollowMode.FollowingLive)
                 {
-                    _motionController.StartAutoMove(_liveTargetCenter);
+                    if (useFastTransition)
+                    {
+                        _motionController.StartAutoMove(
+                            _liveTargetCenter,
+                            _spaceAutoMoveSpeed);
+                    }
+                    else
+                    {
+                        _motionController.StartAutoMove(_liveTargetCenter);
+                    }
+
                     yield return WaitForLiveCenterOrDetach();
                 }
 
+                _activeWordFade = wordFade;
                 yield return wordFade.Reveal(
                     _wordFadeDuration,
                     _delayBetweenWords);
+                _activeWordFade = null;
 
-                if (_delayBetweenLines > 0f && lineIndex < TargetLineCount - 1)
+                if (_delayBetweenLines > 0f && localIndex < lineCount - 1)
                 {
                     yield return new WaitForSecondsRealtime(_delayBetweenLines);
                 }
@@ -288,6 +477,50 @@ namespace Glush.Dialogue
             WheelRuleView endRule = AddRule(_itemViews.Count, isDouble: true);
             yield return endRule.FadeIn(_ruleFadeDuration);
             PlayTextEndClick();
+            _isWritingBlock = false;
+        }
+
+        private IEnumerator RunBlockTransition(
+            TestBlockSettings block,
+            bool hasMoreContent)
+        {
+            if (block.PauseAfter > 0f)
+            {
+                yield return new WaitForSecondsRealtime(block.PauseAfter);
+            }
+
+            _isWaitingForAdvance = true;
+            _advanceRequested = false;
+
+            while (!_advanceRequested)
+            {
+                yield return null;
+            }
+
+            _isWaitingForAdvance = false;
+            _advanceRequested = false;
+
+            for (int i = 0; i < block.GapCount; i++)
+            {
+                AddSpacer();
+            }
+
+            if (_followMode == FollowMode.FollowingLive)
+            {
+                _carryFastTransitionIntoNextLine = hasMoreContent;
+
+                if (block.GapCount > 0)
+                {
+                    _motionController.StartAutoMove(
+                        _liveTargetCenter,
+                        _spaceAutoMoveSpeed);
+
+                    if (!hasMoreContent)
+                    {
+                        yield return WaitForLiveCenterOrDetach();
+                    }
+                }
+            }
         }
 
         private IEnumerator WaitForLiveCenterOrDetach()
@@ -341,6 +574,26 @@ namespace Glush.Dialogue
             wordFade.PrepareHidden();
 
             return wordFade;
+        }
+
+        private void AddSpacer()
+        {
+            TMP_Text spacerItem = Instantiate(_itemTemplate, _wheelContainer);
+            spacerItem.text = string.Empty;
+
+            WheelItemView view = spacerItem.GetComponent<WheelItemView>();
+            if (view == null)
+            {
+                view = spacerItem.gameObject.AddComponent<WheelItemView>();
+            }
+
+            float centerPosition = _itemViews.Count + 0.5f;
+            view.SetItemCenterPosition(centerPosition);
+            _itemViews.Add(view);
+            _liveTargetCenter = centerPosition;
+
+            spacerItem.gameObject.SetActive(true);
+            view.UpdateProjection(_wheelPosition);
         }
 
         private WheelRuleView AddRule(float boundaryPosition, bool isDouble)
@@ -437,7 +690,22 @@ namespace Glush.Dialogue
         private void OnDisable()
         {
             _isDragging = false;
+            _isWritingBlock = false;
+            _isWaitingForAdvance = false;
+            _advanceRequested = false;
+            _activeWordFade = null;
             _activeClickEndTimes.Clear();
+
+            if (_advanceAction != null)
+            {
+                _advanceAction.performed -= HandleAdvancePerformed;
+                _advanceAction.Disable();
+            }
+
+            if (_advanceIndicator != null)
+            {
+                _advanceIndicator.gameObject.SetActive(false);
+            }
 
             if (_motionController != null)
             {
@@ -446,17 +714,22 @@ namespace Glush.Dialogue
             }
         }
 
+        private void OnDestroy()
+        {
+            _advanceAction?.Dispose();
+        }
+
         private void OnValidate()
         {
             _scrollSensitivity = Mathf.Max(0.01f, _scrollSensitivity);
             _dragPixelsPerItem = Mathf.Max(1f, _dragPixelsPerItem);
             _releaseDetectionTime = Mathf.Max(0f, _releaseDetectionTime);
             _maxSimultaneousClicks = Mathf.Max(1, _maxSimultaneousClicks);
-            _testLineCount = Mathf.Max(1, _testLineCount);
             _wordFadeDuration = Mathf.Max(0f, _wordFadeDuration);
             _delayBetweenWords = Mathf.Max(0f, _delayBetweenWords);
             _ruleFadeDuration = Mathf.Max(0f, _ruleFadeDuration);
             _delayBetweenLines = Mathf.Max(0f, _delayBetweenLines);
+            _spaceAutoMoveSpeed = Mathf.Max(0.01f, _spaceAutoMoveSpeed);
         }
     }
 }

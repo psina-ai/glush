@@ -27,6 +27,7 @@ namespace Glush.Dialogue
         private MotionPhase _phase = MotionPhase.Idle;
         private float _velocity;
         private float _autoMoveTarget = 0.5f;
+        private float _activeAutoMoveSpeed = 1.5f;
         private float _snapTarget = 0.5f;
         private float _pendingDragDelta;
         private bool _finishDragAfterUpdate;
@@ -75,7 +76,13 @@ namespace Glush.Dialogue
 
         public void StartAutoMove(float targetCenter)
         {
+            StartAutoMove(targetCenter, _autoMoveSpeed);
+        }
+
+        public void StartAutoMove(float targetCenter, float speed)
+        {
             _autoMoveTarget = targetCenter;
+            _activeAutoMoveSpeed = Mathf.Max(0.01f, speed);
             ResetDragState();
             _velocity = 0f;
             _phase = MotionPhase.AutoMove;
@@ -138,7 +145,7 @@ namespace Glush.Dialogue
             float nextPosition = Mathf.MoveTowards(
                 currentWheelPosition,
                 _autoMoveTarget,
-                _autoMoveSpeed * deltaTime);
+                _activeAutoMoveSpeed * deltaTime);
 
             if (Mathf.Abs(nextPosition - _autoMoveTarget) <= _centerTolerance)
             {
