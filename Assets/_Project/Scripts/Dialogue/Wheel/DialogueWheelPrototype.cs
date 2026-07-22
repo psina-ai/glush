@@ -214,7 +214,7 @@ namespace Glush.Dialogue
                 _motionController.ZeroVelocity();
             }
 
-            DetectBoundaryCrossings(oldPosition, clampedPosition);
+            DetectCenterCrossings(oldPosition, clampedPosition);
             _wheelPosition = clampedPosition;
         }
 
@@ -322,24 +322,28 @@ namespace Glush.Dialogue
             rule.UpdateProjection(_wheelPosition);
         }
 
-        private void DetectBoundaryCrossings(float oldPosition, float newPosition)
+        private void DetectCenterCrossings(float oldPosition, float newPosition)
         {
-            if (newPosition > oldPosition)
-            {
-                int firstBoundary = Mathf.FloorToInt(oldPosition) + 1;
-                int lastBoundary = Mathf.FloorToInt(newPosition);
+            // После сдвига на 0.5 центры 0.5, 1.5, 2.5 превращаются в целые числа.
+            float oldShifted = oldPosition - 0.5f;
+            float newShifted = newPosition - 0.5f;
 
-                for (int boundary = firstBoundary; boundary <= lastBoundary; boundary++)
+            if (newShifted > oldShifted)
+            {
+                int firstCenter = Mathf.FloorToInt(oldShifted) + 1;
+                int lastCenter = Mathf.FloorToInt(newShifted);
+
+                for (int center = firstCenter; center <= lastCenter; center++)
                 {
                     PlayWheelClick();
                 }
             }
-            else if (newPosition < oldPosition)
+            else if (newShifted < oldShifted)
             {
-                int firstBoundary = Mathf.CeilToInt(oldPosition) - 1;
-                int lastBoundary = Mathf.CeilToInt(newPosition);
+                int firstCenter = Mathf.CeilToInt(oldShifted) - 1;
+                int lastCenter = Mathf.CeilToInt(newShifted);
 
-                for (int boundary = firstBoundary; boundary >= lastBoundary; boundary--)
+                for (int center = firstCenter; center >= lastCenter; center--)
                 {
                     PlayWheelClick();
                 }
