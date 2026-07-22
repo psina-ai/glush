@@ -501,14 +501,14 @@ MonoBehaviour:
   _itemTemplate: {fileID: 329723989}
   _ruleTemplate: {fileID: 1450183773}
   _scrollSensitivity: 6
-  _dragPixelsPerItem: 90
-  _releaseDetectionTime: 1
+  _dragPixelsPerItem: 60
+  _releaseDetectionTime: 0
   _advanceIndicator: {fileID: 1444537143}
   _advanceIndicatorText: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u041F\u0440\u043E\u0431\u0435\u043B"
   _audioSource: {fileID: 631810260}
   _wheelClickClip: {fileID: 8300000, guid: 52689ebb07ea0a84ba170cee72a580ee, type: 3}
   _textEndClickClip: {fileID: 8300000, guid: 52689ebb07ea0a84ba170cee72a580ee, type: 3}
-  _maxSimultaneousClicks: 6
+  _maxSimultaneousClicks: 3
   _wordFadeDuration: 0.12
   _delayBetweenWords: 0.04
   _ruleFadeDuration: 0.2
@@ -577,8 +577,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Glush.Dialogue.WheelMotionController
   _autoMoveSpeed: 1.5
   _inertiaFriction: 0.9
-  _snapSpringStrength: 5
-  _velocityThreshold: 0.01
+  _snapSpringStrength: 16
+  _velocityThreshold: 1
   _centerTolerance: 0.02
 --- !u!1 &879119055
 GameObject:
