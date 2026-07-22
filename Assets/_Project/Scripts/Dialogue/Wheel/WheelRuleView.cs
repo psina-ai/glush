@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -41,6 +42,7 @@ namespace Glush.Dialogue
             }
 
             _projection.SetItemCenterPosition(boundaryPosition);
+            _projection.SetVisibility(0f);
 
             ConfigureLine(_firstLine.rectTransform, isDouble
                 ? _doubleLineSpacing * 0.5f
@@ -62,6 +64,31 @@ namespace Glush.Dialogue
             {
                 _projection.UpdateProjection(wheelPosition);
             }
+        }
+
+        public IEnumerator FadeIn(float duration)
+        {
+            EnsureInitialized();
+            if (!_isInitialized)
+            {
+                yield break;
+            }
+
+            if (duration <= 0f)
+            {
+                _projection.SetVisibility(1f);
+                yield break;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                _projection.SetVisibility(Mathf.Clamp01(elapsed / duration));
+                yield return null;
+            }
+
+            _projection.SetVisibility(1f);
         }
 
         private void OnEnable()

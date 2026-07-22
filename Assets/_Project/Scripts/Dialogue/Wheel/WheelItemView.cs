@@ -19,6 +19,7 @@ namespace Glush.Dialogue
         private CanvasGroup _canvasGroup;
         private bool _isInitialized;
         private float _itemCenterPosition;
+        private float _visibilityMultiplier = 1f;
 
         private void OnEnable()
         {
@@ -28,6 +29,11 @@ namespace Glush.Dialogue
         public void SetItemCenterPosition(float centerPosition)
         {
             _itemCenterPosition = centerPosition;
+        }
+
+        public void SetVisibility(float visibility)
+        {
+            _visibilityMultiplier = Mathf.Clamp01(visibility);
         }
 
         public void CopyProjectionSettingsFrom(WheelItemView source)
@@ -83,7 +89,7 @@ namespace Glush.Dialogue
             _rectTransform.anchoredPosition = new Vector2(
                 _rectTransform.anchoredPosition.x,
                 yOffset);
-            _canvasGroup.alpha = alpha;
+            _canvasGroup.alpha = alpha * _visibilityMultiplier;
         }
 
         private void EnsureInitialized()

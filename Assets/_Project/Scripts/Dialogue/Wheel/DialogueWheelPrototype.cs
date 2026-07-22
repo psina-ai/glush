@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -30,11 +31,15 @@ namespace Glush.Dialogue
         [Header("Audio")]
         [SerializeField] private AudioSource _audioSource;
         [SerializeField] private AudioClip _wheelClickClip;
+        [SerializeField] private AudioClip _textEndClickClip;
         [SerializeField] private int _maxSimultaneousClicks = 6;
 
-        [Header("Test Data")]
-        [SerializeField] private float _newLineSpawnInterval = 3f;
+        [Header("Test Presentation")]
         [SerializeField] private int _testLineCount = 12;
+        [SerializeField] private float _wordFadeDuration = 0.12f;
+        [SerializeField] private float _delayBetweenWords = 0.04f;
+        [SerializeField] private float _ruleFadeDuration = 0.2f;
+        [SerializeField] private float _delayBetweenLines = 0.15f;
 
         private readonly List<string> _testLines = new()
         {
@@ -65,8 +70,6 @@ namespace Glush.Dialogue
         private FollowMode _followMode = FollowMode.FollowingLive;
         private float _liveTargetCenter = 0.5f;
         private float _lastScrollTime;
-        private float _nextSpawnTime;
-        private int _spawnedLineCount;
 
         private int TargetLineCount => Mathf.Clamp(_testLineCount, 1, _testLines.Count);
 
@@ -116,9 +119,7 @@ namespace Glush.Dialogue
 
         private void Start()
         {
-            AddRule(0f, isDouble: true);
-            AddNewLine(_testLines[0]);
-            _nextSpawnTime = Time.unscaledTime + _newLineSpawnInterval;
+            StartCoroutine(RunTestBlock());
         }
 
         private void Update()
@@ -126,7 +127,6 @@ namespace Glush.Dialogue
             UpdateWheelPosition();
             UpdateFollowMode();
             UpdateViews();
-            TrySpawnNextLine();
             TryStartSnap();
         }
 
@@ -254,22 +254,49 @@ namespace Glush.Dialogue
             }
         }
 
-        private void TrySpawnNextLine()
+        private IEnumerator RunTestBlock()
         {
-            if (Time.unscaledTime < _nextSpawnTime ||
-                _spawnedLineCount >= TargetLineCount)
+            WheelRuleView startRule = AddRule(0f, isDouble: true);
+            yield return startRule.FadeIn(_ruleFadeDuration);
+
+            for (int lineIndex = 0; lineIndex < TargetLineCount; lineIndex++)
             {
-                return;
+                if (lineIndex > 0)
+                {
+                    WheelRuleView separator = AddRule(lineIndex, isDouble: false);
+                    yield return separator.FadeIn(_ruleFadeDuration);
+                }
+
+                WordFadeAnimator wordFade = AddNewLine(_testLines[lineIndex]);
+
+                if (_followMode == FollowMode.FollowingLive)
+                {
+                    _motionController.StartAutoMove(_liveTargetCenter);
+                    yield return WaitForLiveCenterOrDetach();
+                }
+
+                yield return wordFade.Reveal(
+                    _wordFadeDuration,
+                    _delayBetweenWords);
+
+                if (_delayBetweenLines > 0f && lineIndex < TargetLineCount - 1)
+                {
+                    yield return new WaitForSecondsRealtime(_delayBetweenLines);
+                }
             }
 
-            int nextIndex = _spawnedLineCount;
-            AddNewLine(_testLines[nextIndex]);
-            _nextSpawnTime = Time.unscaledTime + _newLineSpawnInterval;
+            WheelRuleView endRule = AddRule(_itemViews.Count, isDouble: true);
+            yield return endRule.FadeIn(_ruleFadeDuration);
+            PlayTextEndClick();
+        }
 
-            if (_followMode == FollowMode.FollowingLive)
+        private IEnumerator WaitForLiveCenterOrDetach()
+        {
+            while (_followMode == FollowMode.FollowingLive &&
+                   Mathf.Abs(_wheelPosition - _liveTargetCenter) >
+                   _motionController.CenterTolerance)
             {
-                // Обновляет цель даже если предыдущий AutoMove ещё не успел закончиться.
-                _motionController.StartAutoMove(_liveTargetCenter);
+                yield return null;
             }
         }
 
@@ -285,7 +312,7 @@ namespace Glush.Dialogue
             _motionController.StartSnap(FindNearestCenter(_wheelPosition));
         }
 
-        private void AddNewLine(string text)
+        private WordFadeAnimator AddNewLine(string text)
         {
             TMP_Text newItem = Instantiate(_itemTemplate, _wheelContainer);
             newItem.text = text;
@@ -296,22 +323,27 @@ namespace Glush.Dialogue
                 view = newItem.gameObject.AddComponent<WheelItemView>();
             }
 
+            WordFadeAnimator wordFade = newItem.GetComponent<WordFadeAnimator>();
+            if (wordFade == null)
+            {
+                wordFade = newItem.gameObject.AddComponent<WordFadeAnimator>();
+            }
+
             float centerPosition = _itemViews.Count + 0.5f;
             view.SetItemCenterPosition(centerPosition);
             _itemViews.Add(view);
 
-            _spawnedLineCount++;
             _liveTargetCenter = centerPosition;
 
             // Копия наследует неактивное состояние шаблона, поэтому включаем только её.
             newItem.gameObject.SetActive(true);
             view.UpdateProjection(_wheelPosition);
+            wordFade.PrepareHidden();
 
-            bool isBlockEnd = _spawnedLineCount >= TargetLineCount;
-            AddRule(_itemViews.Count, isBlockEnd);
+            return wordFade;
         }
 
-        private void AddRule(float boundaryPosition, bool isDouble)
+        private WheelRuleView AddRule(float boundaryPosition, bool isDouble)
         {
             WheelRuleView rule = Instantiate(_ruleTemplate, _wheelContainer);
             rule.CopyProjectionSettingsFrom(_itemProjectionTemplate);
@@ -320,6 +352,7 @@ namespace Glush.Dialogue
 
             rule.gameObject.SetActive(true);
             rule.UpdateProjection(_wheelPosition);
+            return rule;
         }
 
         private void DetectCenterCrossings(float oldPosition, float newPosition)
@@ -376,6 +409,14 @@ namespace Glush.Dialogue
             _activeClickEndTimes.Enqueue(now + clickDuration);
         }
 
+        private void PlayTextEndClick()
+        {
+            if (_audioSource != null && _textEndClickClip != null)
+            {
+                _audioSource.PlayOneShot(_textEndClickClip);
+            }
+        }
+
         private static float FindNearestCenter(float position)
         {
             return Mathf.Floor(position) + 0.5f;
@@ -411,8 +452,11 @@ namespace Glush.Dialogue
             _dragPixelsPerItem = Mathf.Max(1f, _dragPixelsPerItem);
             _releaseDetectionTime = Mathf.Max(0f, _releaseDetectionTime);
             _maxSimultaneousClicks = Mathf.Max(1, _maxSimultaneousClicks);
-            _newLineSpawnInterval = Mathf.Max(0.01f, _newLineSpawnInterval);
             _testLineCount = Mathf.Max(1, _testLineCount);
+            _wordFadeDuration = Mathf.Max(0f, _wordFadeDuration);
+            _delayBetweenWords = Mathf.Max(0f, _delayBetweenWords);
+            _ruleFadeDuration = Mathf.Max(0f, _ruleFadeDuration);
+            _delayBetweenLines = Mathf.Max(0f, _delayBetweenLines);
         }
     }
 }
