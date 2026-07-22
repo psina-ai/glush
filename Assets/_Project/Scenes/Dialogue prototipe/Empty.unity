@@ -504,9 +504,13 @@ MonoBehaviour:
   _releaseDetectionTime: 1
   _audioSource: {fileID: 631810260}
   _wheelClickClip: {fileID: 8300000, guid: 52689ebb07ea0a84ba170cee72a580ee, type: 3}
+  _textEndClickClip: {fileID: 8300000, guid: 52689ebb07ea0a84ba170cee72a580ee, type: 3}
   _maxSimultaneousClicks: 6
-  _newLineSpawnInterval: 2
   _testLineCount: 12
+  _wordFadeDuration: 0.12
+  _delayBetweenWords: 0.04
+  _ruleFadeDuration: 0.2
+  _delayBetweenLines: 0.15
 --- !u!114 &718840708
 MonoBehaviour:
   m_ObjectHideFlags: 0
